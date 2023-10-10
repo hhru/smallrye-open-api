@@ -100,11 +100,15 @@ public class TypeUtil {
     private static final TypeWithFormat TIME_FORMAT = TypeWithFormat.of(SchemaType.STRING).format(DataFormat.TIME)
             .externalDocumentation("As defined by 'full-time' in RFC3339",
                     "https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6")
-            .example("13:45:30.123456789+02:00").build();
+            // Extend with [time-secfrac] when issue is fixed
+            // https://youtrack.jetbrains.com/issue/IDEA-339167/OpenApi-Specifications-plugin-Invalid-parsing-of-local-time-format
+            .example("13:45:30+02:00").build();
     private static final TypeWithFormat TIME_LOCAL_FORMAT = TypeWithFormat.of(SchemaType.STRING).format(DataFormat.TIME_LOCAL)
             .externalDocumentation("As defined by 'partial-time' in RFC3339",
                     "https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6")
-            .example("13:45:30.123456789").build();
+            // Extend with [time-secfrac] when issue is fixed
+            // https://youtrack.jetbrains.com/issue/IDEA-339167/OpenApi-Specifications-plugin-Invalid-parsing-of-local-time-format
+            .example("13:45:30").build();
 
     private static final Map<DotName, TypeWithFormat> TYPE_MAP = new LinkedHashMap<>();
     public static final IndexView jdkIndex;

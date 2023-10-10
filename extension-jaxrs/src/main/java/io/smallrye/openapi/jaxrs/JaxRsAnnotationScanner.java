@@ -6,7 +6,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +33,7 @@ import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 
@@ -60,6 +64,27 @@ import io.smallrye.openapi.runtime.util.ModelUtil;
 public class JaxRsAnnotationScanner extends AbstractAnnotationScanner {
     private static final String JAVAX_PACKAGE = "javax.ws.rs";
     private static final String JAKARTA_PACKAGE = "jakarta.ws.rs";
+
+    private static class Companion {
+        private static final Comparator<ClassInfo> PRIORITY_COMPARATOR = (first, second) -> {
+            Integer firstPriorityValue = getPriority(first);
+            Integer secondPriorityValue = getPriority(second);
+            return firstPriorityValue.compareTo(secondPriorityValue);
+        };
+
+        private static int getPriority(ClassInfo classInfo) {
+            int priority = JaxRsConstants.PRIORITY_DEFAULT_VALUE;
+            for (DotName dotName : JaxRsConstants.PRIORITY) {
+                AnnotationInstance annotation = classInfo.annotation(dotName);
+                if (annotation == null) {
+                    continue;
+                }
+
+                priority = (Integer) annotation.value("value").value();
+            }
+            return priority;
+        }
+    }
 
     private final Deque<JaxRsSubResourceLocator> subResourceStack = new LinkedList<>();
 
@@ -104,7 +129,8 @@ public class JaxRsAnnotationScanner extends AbstractAnnotationScanner {
 
     @Override
     public boolean isMultipartInput(Type inputType) {
-        return RestEasyConstants.MULTIPART_INPUTS.contains(inputType.name());
+        DotName name = inputType.name();
+        return JerseyConstants.MULTIPART_INPUTS.contains(name) || RestEasyConstants.MULTIPART_INPUTS.contains(name);
     }
 
     @Override
@@ -305,30 +331,88 @@ public class JaxRsAnnotationScanner extends AbstractAnnotationScanner {
         Collection<ClassInfo> exceptionMappers = new ArrayList<>();
 
         for (DotName dn : JaxRsConstants.EXCEPTION_MAPPER) {
-            exceptionMappers.addAll(context.getIndex()
-                    .getKnownDirectImplementors(dn));
+            Collection<ClassInfo> hierarchyChain = obtainHierarchyChain(dn, context);
+            exceptionMappers.addAll(hierarchyChain);
         }
-
-        return exceptionMappers.stream()
-                .flatMap(this::exceptionResponseAnnotations)
+        Map<Type, List<ClassInfo>> exceptionAndMappers = groupByExceptionType(exceptionMappers, context.getIndex());
+        Map<Type, ClassInfo> exceptionTypeToMapper = getPrioritizedMappers(exceptionAndMappers);
+        return exceptionTypeToMapper.entrySet().stream()
+                .flatMap(entry -> this.exceptionResponseAnnotations(entry.getValue(), entry.getKey()))
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
-    private Stream<Entry<DotName, List<AnnotationInstance>>> exceptionResponseAnnotations(ClassInfo classInfo) {
-
-        Type exceptionType = classInfo.interfaceTypes()
+    private Collection<ClassInfo> obtainHierarchyChain(DotName root, AnnotationScannerContext context) {
+        FilteredIndexView index = context.getIndex();
+        Collection<ClassInfo> allKnownSubInterfaces = index.getAllKnownSubinterfaces(root)
                 .stream()
-                .filter(it -> JaxRsConstants.EXCEPTION_MAPPER.contains(it.name()))
-                .filter(it -> Type.Kind.PARAMETERIZED_TYPE.equals(it.kind()))
-                .map(Type::asParameterizedType)
-                .map(type -> type.arguments().get(0))
-                .findAny()
-                .orElse(null);
+                .filter(ci -> !index.getAllKnownImplementors(ci.name()).isEmpty())
+                .collect(Collectors.toList());
+        return Stream.of(allKnownSubInterfaces, index.getAllKnownImplementors(root))
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(ClassInfo::name, Function.identity())).values();
+    }
 
-        if (exceptionType == null) {
-            return Stream.empty();
+    private Map<Type, List<ClassInfo>> groupByExceptionType(Collection<ClassInfo> exceptionMappers, IndexView index) {
+        LinkedHashMap<Type, List<ClassInfo>> result = new LinkedHashMap<>();
+        for (ClassInfo exceptionMapper : exceptionMappers) {
+
+            Type exceptionType = getExceptionTypeFromImplementor(null, exceptionMapper, index);
+
+            if (exceptionType == null) {
+                continue;
+            }
+
+            List<ClassInfo> classInfos = result.computeIfAbsent(exceptionType, (k) -> new ArrayList<>());
+            classInfos.add(exceptionMapper);
+        }
+        return result;
+    }
+
+    private Type getExceptionTypeFromImplementor(ClassInfo previous, ClassInfo current, IndexView index) {
+        // This might be a concrete type like "NotFoundException" or a generic definition like "E extends Throwable"
+        Type exceptionType = getExceptionTypeFromMethod(current);
+
+        DotName superName = current.superName();
+
+        if (exceptionType == null && superName != null && !superName.equals(DotName.OBJECT_NAME)) {
+            exceptionType = getExceptionTypeFromImplementor(current, index.getClassByName(superName), index);
         }
 
+        // Generic types have consistent order in definition, so we need an index to derive a concrete type from implementor
+        int genericParameterIndex = current.typeParameters().indexOf(exceptionType);
+        if (genericParameterIndex != -1) {
+            // The root of the recursion is a class with Generics, this is not possible to derive exception type without implementor
+            if (previous == null) {
+                return null;
+            }
+            exceptionType = previous.superClassType().asParameterizedType().arguments().get(genericParameterIndex);
+        }
+
+        return exceptionType;
+    }
+
+    private Type getExceptionTypeFromMethod(ClassInfo classInfo) {
+        return classInfo.methods().stream()
+                .filter(m -> m.name().equals(JaxRsConstants.TO_RESPONSE_METHOD_NAME))
+                // Remove bridge/synthetic methods, they don't contain any useful parameter information
+                .filter(methodInfo -> !methodInfo.isSynthetic())
+                // extract exception type, it is the only argument in contract
+                .map(m -> m.parameterType(0))
+                .findAny().orElse(null);
+    }
+
+    private Map<Type, ClassInfo> getPrioritizedMappers(Map<Type, List<ClassInfo>> exceptionAndMappers) {
+        Map<Type, ClassInfo> result = new HashMap<>();
+        for (Type exceptionType : exceptionAndMappers.keySet()) {
+            List<ClassInfo> eMappers = exceptionAndMappers.get(exceptionType);
+            eMappers.sort(Companion.PRIORITY_COMPARATOR);
+            result.put(exceptionType, eMappers.get(0));
+        }
+        return result;
+    }
+
+    private Stream<Entry<DotName, List<AnnotationInstance>>> exceptionResponseAnnotations(ClassInfo classInfo,
+            Type exceptionType) {
         Stream<AnnotationInstance> methodAnnotations = Stream
                 .of(classInfo.method(JaxRsConstants.TO_RESPONSE_METHOD_NAME, exceptionType))
                 .filter(Objects::nonNull)

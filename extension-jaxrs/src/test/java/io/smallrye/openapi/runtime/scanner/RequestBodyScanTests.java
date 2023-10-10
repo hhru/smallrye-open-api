@@ -104,4 +104,64 @@ class RequestBodyScanTests extends IndexScannerTestBase {
         }
         test("params.request-body-constraints.json", Resource.class);
     }
+
+    @Test
+    void testJavaxJerseyFormDataMultiPart() throws IOException, JSONException {
+        test("params.jersey-form-data-multipart.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.JerseyFormDataMultipartResource.class);
+    }
+
+    @Test
+    void testJavaxJerseyFormDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-form-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.JerseyFormDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJavaxJerseyFileDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-file-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.JerseyFileDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJavaxJerseyStreamDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-stream-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.JerseyStreamDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJavaxJerseyFormDataContentDisposition() throws IOException, JSONException {
+        test("params.jersey-form-data-content-disposition.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.JerseyFormDataContentDispositionResource.class);
+    }
+
+    @Test
+    void testJakartaJerseyFormDataMultiPart() throws IOException, JSONException {
+        test("params.jersey-form-data-multipart.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.JerseyFormDataMultipartResource.class);
+    }
+
+    @Test
+    void testJakartaJerseyFormDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-form-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.JerseyFormDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJakartaJerseyFileDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-file-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.JerseyFileDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJakartaJerseyStreamDataBodyPart() throws IOException, JSONException {
+        test("params.jersey-stream-data-body-part.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.JerseyStreamDataBodyPartResource.class);
+    }
+
+    @Test
+    void testJakartaJerseyFormDataContentDisposition() throws IOException, JSONException {
+        test("params.jersey-form-data-content-disposition.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.JerseyFormDataContentDispositionResource.class);
+    }
 }

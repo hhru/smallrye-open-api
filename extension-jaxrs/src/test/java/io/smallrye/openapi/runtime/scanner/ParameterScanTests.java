@@ -458,6 +458,36 @@ class ParameterScanTests extends IndexScannerTestBase {
     }
 
     @Test
+    void testJavaxBeanParamJersey() throws IOException, JSONException {
+        test("params.local-schema-attributes-bean-param-jersey.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.BeanParamJerseyResource.class,
+                test.io.smallrye.openapi.runtime.scanner.javax.BeanParamJerseyResource.JerseyBean.class);
+    }
+
+    @Test
+    void testJakartaBeanParamJersey() throws IOException, JSONException {
+        test("params.local-schema-attributes-bean-param-jersey.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.BeanParamJerseyResource.class,
+                test.io.smallrye.openapi.runtime.scanner.jakarta.BeanParamJerseyResource.JerseyBean.class);
+    }
+
+    @Test
+    void testJavaxBeanParamEnumDefaultValueForEndpoint() throws IOException, JSONException {
+        test("params.local-schema-attributes-bean-param-enum-default-value-for-endpoint.json",
+                test.io.smallrye.openapi.runtime.scanner.javax.BeanParamEnumDefaultValueForEndpointResource.class,
+                test.io.smallrye.openapi.runtime.scanner.javax.BeanParamEnumDefaultValueForEndpointResource.SimpleBeanParam.class,
+                test.io.smallrye.openapi.runtime.scanner.javax.PetEnum.class);
+    }
+
+    @Test
+    void testJakartaBeanParamEnumDefaultValueForEndpoint() throws IOException, JSONException {
+        test("params.local-schema-attributes-bean-param-enum-default-value-for-endpoint.json",
+                test.io.smallrye.openapi.runtime.scanner.jakarta.BeanParamEnumDefaultValueForEndpointResource.class,
+                test.io.smallrye.openapi.runtime.scanner.jakarta.BeanParamEnumDefaultValueForEndpointResource.SimpleBeanParam.class,
+                test.io.smallrye.openapi.runtime.scanner.jakarta.PetEnum.class);
+    }
+
+    @Test
     void testJavaxGenericTypeVariableResource() throws IOException, JSONException {
         test("params.generic-type-variables.json", test.io.smallrye.openapi.runtime.scanner.javax.BaseGenericResource.class,
                 test.io.smallrye.openapi.runtime.scanner.javax.BaseGenericResource.GenericBean.class,

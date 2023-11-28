@@ -1,6 +1,7 @@
 package io.smallrye.openapi.jaxrs;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -169,10 +170,60 @@ public class JaxRsParameterProcessor extends AbstractParameterProcessor {
         } else {
             FrameworkParameter frameworkParam = JaxRsParameter.forName(name);
 
-            if (frameworkParam != null) {
+            if (frameworkParam == null) {
+                return;
+            }
+
+            boolean isJerseyParameter = frameworkParam.getNames().stream().anyMatch(JaxRsParameter::isJerseyParameter);
+            if (isJerseyParameter) {
+                readJerseyParameter(annotation, frameworkParam, overriddenParametersOnly);
+            } else {
                 readJaxRsParameter(annotation, frameworkParam, beanParamAnnotation, overriddenParametersOnly);
             }
         }
+    }
+
+    private void readJerseyParameter(AnnotationInstance annotation, FrameworkParameter frameworkParam,
+            boolean overriddenParametersOnly) {
+        AnnotationTarget target = annotation.target();
+        Type targetType = getType(target);
+
+        if (frameworkParam.style == Style.FORM) {
+            String paramName = paramName(annotation);
+            /*
+             * Jersey allows us to specify parameters with the same name.
+             *
+             * @FormDataParam("file") InputStream fileStream,
+             *
+             * @FormDataParam("file") FormDataContentDisposition contentDisposition
+             *
+             * Such scenario is not supported by standard and if left as is `contentDisposition` will override OpenAPI schema of
+             * `fileStream`.
+             * This is not a desired behavior, and we are forced to skip multipart types if parameter with the same name was
+             * already
+             * defined in the same scope.
+             */
+            if (isJerseyMultipart(targetType) && formParams.containsKey(paramName)) {
+                return;
+            }
+            // Store the @FormDataParam for later processing
+            formParams.put(paramName, annotation);
+            readFrameworkParameter(annotation, frameworkParam, overriddenParametersOnly);
+        }
+    }
+
+    private boolean isJerseyMultipart(Type type) {
+        Set<DotName> names = new HashSet<>();
+
+        if (type.kind() == Type.Kind.CLASS) {
+            names.add(type.asClassType().name());
+        } else if (type.kind() == Type.Kind.ARRAY) {
+            names.add(type.asArrayType().elementType().name());
+        } else if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+            type.asParameterizedType().arguments().stream().map(Type::name).forEach(names::add);
+        }
+
+        return names.stream().anyMatch(JerseyConstants.MULTIPART_INPUTS::contains);
     }
 
     private void readJaxRsParameter(AnnotationInstance annotation,

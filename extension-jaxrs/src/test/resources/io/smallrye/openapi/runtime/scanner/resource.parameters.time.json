@@ -98,7 +98,7 @@
           "description": "As defined by 'partial-time' in RFC3339",
           "url": "https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6"
         },
-        "example": "13:45:30.123456789"
+        "example": "13:45:30"
       },
       "OffsetTime": {
         "type": "string",
@@ -107,7 +107,7 @@
           "description": "As defined by 'full-time' in RFC3339",
           "url": "https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6"
         },
-        "example": "13:45:30.123456789+02:00"
+        "example": "13:45:30+02:00"
       },
       "UTC": {
         "type": "object",
